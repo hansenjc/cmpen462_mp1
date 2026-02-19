@@ -21,6 +21,7 @@ dependencies {
 
     implementation("org.jetbrains:annotations:16.0.2")
     implementation("org.ejml:ejml-all:0.44.0")
+    implementation("com.github.wendykierp:JTransforms:3.2")
 }
 
 tasks.test {
