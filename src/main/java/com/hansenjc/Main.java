@@ -32,12 +32,17 @@ public class Main {
 
         List<String> preamble = new BufferedReader(new FileReader(PREAMBLE)).lines().toList();
 
+        Pattern pattern = Pattern.compile("(-?\\d\\.\\d{1,6})([-+]\\d\\.\\d{1,6})i");
         int i = 0;
         double[] vec_preamble = new double[2 * preamble.size()];
         for (String complex : preamble) {
-            Matcher matcher = Pattern.compile("(-?\\d\\.\\d{4,5})([-+]\\d\\.\\d{4,5}i)").matcher(complex);
-            vec_preamble[i] = Double.parseDouble(matcher.group(1));
-            vec_preamble[i + 1] = Double.parseDouble(matcher.group(2));
+            Matcher matcher = pattern.matcher(complex);
+            if (matcher.find()) {
+                vec_preamble[i] = Double.parseDouble(matcher.group(1));
+                vec_preamble[i + 1] = Double.parseDouble(matcher.group(2));
+            } else {
+                throw new IllegalArgumentException("Invalid Complex number in preamble: " + complex);
+            }
             i += 2;
         }
 
@@ -50,12 +55,9 @@ public class Main {
 
         double[] vec_downsampled_I_Q = downSample(vec_filtered_I_Q);
 
-        double[] vec_correlated_I_Q = crossCorrelate(vec_downsampled_I_Q, vec_preamble);
+        int msg_start = crossCorrelate(vec_downsampled_I_Q, vec_preamble);
 
-
-
-
-        demodulate();
+        demodulate(vec_filtered_I_Q, msg_start);
 
         asciiToText();
     }
@@ -166,8 +168,8 @@ public class Main {
         return msg_start;
     }
 
-    private static void demodulate() {
-
+    private static void demodulate(double[] vec_data, int i) {
+        System.out.println(i);
     }
 
     private static void asciiToText() {
