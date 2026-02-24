@@ -57,9 +57,9 @@ public class Main {
 
         int msg_start = crossCorrelate(vec_downsampled_I_Q, vec_preamble);
 
-        demodulate(vec_filtered_I_Q, msg_start);
+        byte[] fourbits = demodulate(vec_filtered_I_Q, msg_start);
 
-        asciiToText();
+        System.out.println(asciiToText(fourbits));
     }
 
     private static double cos(int n) {
@@ -168,10 +168,26 @@ public class Main {
         return msg_start;
     }
 
-    private static void demodulate(double[] vec_data, int i) {
-        System.out.println(i);
+    private static byte[] demodulate(double[] vec_data, int s) {
+        final int n = vec_data.length / 2;
+
+        byte[] fourbits = new byte[n - s];
+        for (int i = s; i < n; i++) {
+            fourbits[i - s] = new QAM16(vec_data[2 * i], vec_data[2 * i + 1]).demodulate();
+        }
+
+        return fourbits;
     }
 
-    private static void asciiToText() {
+    private static String asciiToText(byte[] fourbits) {
+        // and two 4 bits into a char
+        StringBuilder string = new StringBuilder(fourbits.length / 2);
+        for (int i = 0; i < fourbits.length; i += 2) {
+            byte i1 = (byte) (fourbits[i] << 4 & fourbits[i + 1]);
+            char c = (char) i1;
+            string.append(c);
+        }
+
+        return string.toString();
     }
 }
