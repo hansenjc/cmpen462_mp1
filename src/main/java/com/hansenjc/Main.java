@@ -8,10 +8,13 @@ import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 
 public class Main {
     public static final String INPUT = "input.txt";
+    public static final String PREAMBLE = "preamble.txt";
 
     public static final double f_c = 20.d;      // center/carrier frequency
     public static final double f_s = 100.d;     // sampling frequency
@@ -22,35 +25,47 @@ public class Main {
     public static final List<Integer> h = List.of(1); // channel impulse response, no multipath so only 1 element
 
     public static void main(String[] args) throws FileNotFoundException {
-        BufferedReader reader = new BufferedReader(new FileReader(INPUT));
-
-        DMatrixRMaj vec_input = new DMatrixRMaj(reader.lines()
+        DMatrixRMaj vec_input = new DMatrixRMaj(new BufferedReader(new FileReader(INPUT))
+                .lines()
                 .mapToDouble(Double::parseDouble)
                 .toArray());
+
+        List<String> preamble = new BufferedReader(new FileReader(PREAMBLE)).lines().toList();
+
+        int i = 0;
+        double[] vec_preamble = new double[2 * preamble.size()];
+        for (String complex : preamble) {
+            Matcher matcher = Pattern.compile("(-?\\d\\.\\d{4,5})([-+]\\d\\.\\d{4,5}i)").matcher(complex);
+            vec_preamble[i] = Double.parseDouble(matcher.group(1));
+            vec_preamble[i + 1] = Double.parseDouble(matcher.group(2));
+            i += 2;
+        }
 
         DMatrixRMaj vec_raw_I = new DMatrixRMaj(N);
         DMatrixRMaj vec_raw_Q = new DMatrixRMaj(N);
 
         downConvert(vec_input, vec_raw_I, vec_raw_Q);
 
-        double[] filtered_I_Q = filter(vec_raw_I, vec_raw_Q);
+        double[] vec_filtered_I_Q = lowPassFilter(vec_raw_I, vec_raw_Q);
 
-        // 4. Perform the Inverse FFT to get back to the time domain
-//        fft.complexInverse(fftData, true); // 'true' scales the result correctly
+        double[] vec_downsampled_I_Q = downSample(vec_filtered_I_Q);
 
-        downSample();
-        correlate();
+        double[] vec_correlated_I_Q = crossCorrelate(vec_downsampled_I_Q, vec_preamble);
+
+
+
+
         demodulate();
-        asciiToText();
-        errorCorrection();
-    }
 
-    private static double sin(int n) {
-        return Math.sin(2 * Math.PI * f_c * t_s * n);
+        asciiToText();
     }
 
     private static double cos(int n) {
         return Math.cos(2 * Math.PI * f_c * t_s * n);
+    }
+
+    private static double sin(int n) {
+        return Math.sin(2 * Math.PI * f_c * t_s * n);
     }
 
     private static void downConvert(DMatrixRMaj vec_input, DMatrixRMaj vec_raw_I, DMatrixRMaj vec_raw_Q) {
@@ -68,35 +83,87 @@ public class Main {
         CommonOps_DDRM.elementMult(vec_input, vec_Q, vec_raw_Q);
     }
 
-    private static double[] filter(DMatrixRMaj vec_raw_I, DMatrixRMaj vec_raw_Q) {
+    private static double[] lowPassFilter(DMatrixRMaj vec_raw_I, DMatrixRMaj vec_raw_Q) {
+        // TODO: filter individually
+
         double[] vec_raw_I_Q = new double[2 * N];
         for (int i = 0; i < N; i++) {
             vec_raw_I_Q[2 * i] = vec_raw_I.get(i);
             vec_raw_I_Q[2 * i + 1] = vec_raw_Q.get(i);
         }
 
-        // DFT
+        // DFT separately
         DoubleFFT_1D fft = new DoubleFFT_1D(N);
         fft.complexForward(vec_raw_I_Q);
 
         // zero out frequencies outside +/- 5.1 Hz
         for (int i = 0; i < N; i++) {
-            double freq = (i <= N / 2 ? i : i - N) * f_s / N;
+            double freq = (i <= N / 2 ? i : i - N) * f_s / N; // frequency of the bin index i
             if (Math.abs(freq) > 5.1) {
                 vec_raw_I_Q[2 * i] = 0;
                 vec_raw_I_Q[2 * i + 1] = 0;
             }
         }
 
+        // iFFT TODO: separately too
+        fft.complexInverse(vec_raw_I_Q, true);
+
         return vec_raw_I_Q;
     }
 
-    private static void downSample() {
+    private static double[] downSample(double[] vec) {
+        final int symbol_rate = 10;
+        assert (vec.length % symbol_rate == 0);
 
+        double[] down_sampled = new double[vec.length / symbol_rate];
+
+        int j = 0;
+
+        for (int i = 0; i < vec.length; i += 2) {
+            if ((i / 2) % symbol_rate == 0) {
+                down_sampled[j] = vec[i];
+                down_sampled[j + 1] = vec[i + 1];
+                j += 2;
+            }
+        }
+
+        return down_sampled;
     }
 
-    private static void correlate() {
+    /**
+     * @brief Cross Correlate in the time domain
+     *        https://en.wikipedia.org/wiki/Cross-correlation#Cross-correlation_of_deterministic_signals
+     */
+    private static int crossCorrelate(double[] vec_data, double[] vec_preamble) {
+        final int n = vec_data.length / 2;
+        final int m = vec_preamble.length / 2;
+        final int size = n - m + 1;
 
+        double max_magnitude = -1;
+        int msg_start = 0;
+
+        for (int i = 0; i < size; i++) {
+            double sum_real = 0;
+            double sum_imaginary = 0;
+            for (int j = 0; j < m; j++) {
+                double data_real = vec_data[2 * (i + j)];
+                double data_imaginary = vec_data[2 * (i + j) + 1];
+                double preamble_real = vec_preamble[2 * j];
+                double preamble_imaginary = vec_preamble[2 * j + 1];
+                // complex conjugate of preamble negates i^2 = -1
+                //                                    v
+                sum_real += data_real * preamble_real + data_imaginary * preamble_imaginary;
+                sum_imaginary += data_imaginary * preamble_real - data_real * preamble_imaginary;
+            }
+
+            double magnitude = sum_real * sum_real + sum_imaginary * sum_imaginary;
+            if (magnitude > max_magnitude) {
+                max_magnitude = magnitude;
+                msg_start = i;
+            }
+        }
+
+        return msg_start;
     }
 
     private static void demodulate() {
@@ -104,9 +171,5 @@ public class Main {
     }
 
     private static void asciiToText() {
-    }
-
-    private static void errorCorrection() {
-
     }
 }
