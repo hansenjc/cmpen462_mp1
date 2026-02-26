@@ -133,8 +133,8 @@ public class Main {
     }
 
     /**
-     * @brief Cross Correlate in the time domain
-     *        https://en.wikipedia.org/wiki/Cross-correlation#Cross-correlation_of_deterministic_signals
+     * Cross Correlate in the time domain
+     * https://en.wikipedia.org/wiki/Cross-correlation#Cross-correlation_of_deterministic_signals
      */
     private static int crossCorrelate(double[] vec_data, double[] vec_preamble) {
         final int n = vec_data.length / 2;
@@ -180,10 +180,10 @@ public class Main {
     }
 
     private static String asciiToText(byte[] fourbits) {
-        // and two 4 bits into a char
+        // and or 4 bits into a char
         StringBuilder string = new StringBuilder(fourbits.length / 2);
         for (int i = 0; i < fourbits.length; i += 2) {
-            byte i1 = (byte) (fourbits[i] << 4 & fourbits[i + 1]);
+            byte i1 = (byte) (0b01111111 & (fourbits[i] << 4 | fourbits[i + 1]));
             char c = (char) i1;
             string.append(c);
         }
