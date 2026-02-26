@@ -22,8 +22,6 @@ public class Main {
 
     public static final int N = 3000; // samples
 
-    public static final List<Integer> h = List.of(1); // channel impulse response, no multipath so only 1 element
-
     public static void main(String[] args) throws FileNotFoundException {
         DMatrixRMaj vec_input = new DMatrixRMaj(new BufferedReader(new FileReader(INPUT))
                 .lines()
@@ -56,8 +54,9 @@ public class Main {
         double[] vec_downsampled_I_Q = downSample(vec_filtered_I_Q);
 
         int msg_start = crossCorrelate(vec_downsampled_I_Q, vec_preamble);
+        System.out.printf("Message at: %d\n", msg_start);
 
-        byte[] fourbits = demodulate(vec_filtered_I_Q, msg_start);
+        byte[] fourbits = demodulate(vec_downsampled_I_Q, msg_start);
 
         System.out.println(asciiToText(fourbits));
     }
@@ -86,8 +85,6 @@ public class Main {
     }
 
     private static double[] lowPassFilter(DMatrixRMaj vec_raw_I, DMatrixRMaj vec_raw_Q) {
-        // TODO: filter individually
-
         double[] vec_raw_I_Q = new double[2 * N];
         for (int i = 0; i < N; i++) {
             vec_raw_I_Q[2 * i] = vec_raw_I.get(i);
@@ -107,7 +104,7 @@ public class Main {
             }
         }
 
-        // iFFT TODO: separately too
+        // iFFT
         fft.complexInverse(vec_raw_I_Q, true);
 
         return vec_raw_I_Q;
@@ -115,18 +112,17 @@ public class Main {
 
     private static double[] downSample(double[] vec) {
         final int symbol_rate = 10;
-        assert (vec.length % symbol_rate == 0);
+        final int n = vec.length / 2;
+        assert (n % symbol_rate == 0);
 
         double[] down_sampled = new double[vec.length / symbol_rate];
 
         int j = 0;
 
-        for (int i = 0; i < vec.length; i += 2) {
-            if ((i / 2) % symbol_rate == 0) {
-                down_sampled[j] = vec[i];
-                down_sampled[j + 1] = vec[i + 1];
-                j += 2;
-            }
+        for (int i = 0; i < n; i += symbol_rate) {
+            down_sampled[2 * j] = vec[2 * i];
+            down_sampled[2 * j + 1] = vec[2 * i + 1];
+            j++;
         }
 
         return down_sampled;
@@ -180,12 +176,10 @@ public class Main {
     }
 
     private static String asciiToText(byte[] fourbits) {
-        // and or 4 bits into a char
+        // or 4 bits into a char
         StringBuilder string = new StringBuilder(fourbits.length / 2);
         for (int i = 0; i < fourbits.length; i += 2) {
-            byte i1 = (byte) (0b01111111 & (fourbits[i] << 4 | fourbits[i + 1]));
-            char c = (char) i1;
-            string.append(c);
+            string.append((char) (0xFF & ((fourbits[i] & 0x0F) << 4 | (fourbits[i + 1] & 0x0F))));
         }
 
         return string.toString();

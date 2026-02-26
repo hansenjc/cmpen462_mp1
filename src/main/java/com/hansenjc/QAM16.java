@@ -37,11 +37,13 @@ public class QAM16 {
     }
 
     public double distance_squared(QAM16 other) {
-        return Math.pow(other.i - this.i, 2) + Math.pow(other.q - this.q, 2);
+        double delta_i = other.i - this.i;
+        double delta_q = other.q - this.q;
+        return delta_i * delta_i + delta_q * delta_q;
     }
 
     public byte demodulate() {
-        double min = 1000000000.D;
+        double min = Double.MAX_VALUE;
         QAM16 closest = null;
         for (QAM16 star : CONSTELLATION) {
             double d = this.distance_squared(star);
