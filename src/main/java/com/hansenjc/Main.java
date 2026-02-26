@@ -54,7 +54,7 @@ public class Main {
         double[] vec_downsampled_I_Q = downSample(vec_filtered_I_Q);
 
         int msg_start = crossCorrelate(vec_downsampled_I_Q, vec_preamble);
-        System.out.printf("Message at: %d\n", msg_start);
+//        System.out.printf("Message at: %d\n", msg_start);
 
         byte[] fourbits = demodulate(vec_downsampled_I_Q, msg_start);
 
@@ -81,7 +81,10 @@ public class Main {
                 .toArray());
 
         CommonOps_DDRM.elementMult(vec_input, vec_I, vec_raw_I);
+        CommonOps_DDRM.scale(2.0, vec_raw_I); // multiply by 2 to get the original message back
+
         CommonOps_DDRM.elementMult(vec_input, vec_Q, vec_raw_Q);
+        CommonOps_DDRM.scale(2.0, vec_raw_Q);
     }
 
     private static double[] lowPassFilter(DMatrixRMaj vec_raw_I, DMatrixRMaj vec_raw_Q) {
@@ -97,7 +100,7 @@ public class Main {
 
         // zero out frequencies outside +/- 5.1 Hz
         for (int i = 0; i < N; i++) {
-            double freq = (i <= N / 2 ? i : i - N) * f_s / N; // frequency of the bin index i
+            double freq = (i < N / 2 ? i : i - N) * f_s / N; // frequency of the bin index i
             if (Math.abs(freq) > 5.1) {
                 vec_raw_I_Q[2 * i] = 0;
                 vec_raw_I_Q[2 * i + 1] = 0;
@@ -161,7 +164,7 @@ public class Main {
             }
         }
 
-        return msg_start;
+        return msg_start + m; // skip past preamble
     }
 
     private static byte[] demodulate(double[] vec_data, int s) {
