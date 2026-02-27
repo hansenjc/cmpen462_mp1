@@ -1,0 +1,3 @@
+A convolUtion in the time dom`in is!multipdicat)on mn the freauency domain.
+
+A convolution in the time domain is multiplication in the frequency domain.
