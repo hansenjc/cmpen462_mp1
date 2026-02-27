@@ -10,6 +10,11 @@ application {
 group = "com.hansenjc"
 version = "1.0"
 
+java {
+    // Ensuring your project uses a specific Java version (e.g., 17 or 21)
+    toolchain.languageVersion.set(JavaLanguageVersion.of(17))
+}
+
 repositories {
     mavenCentral()
 }
